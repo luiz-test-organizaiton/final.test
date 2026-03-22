@@ -1,0 +1,40 @@
+name: Python CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - dev
+      - hml
+      - staging
+      - master
+
+jobs:
+  python-quality:
+    name: Python quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install black pylint bandit
+
+      - run: |
+          PY_FILES=$(find . -name "*.py" | tr '\n' ' ')
+          echo "PY_FILES=$PY_FILES" >> $GITHUB_ENV
+
+      - run: |
+          if [ -z "$PY_FILES" ]; then exit 0; fi
+          black --check $PY_FILES || echo "Black issues"
+
+      - run: |
+          if [ -z "$PY_FILES" ]; then exit 0; fi
+          pylint --fail-under=3.0 --disable=C0114,C0115,C0116,C0412,R0903 $PY_FILES
+
+      - run: |
+          if [ -z "$PY_FILES" ]; then exit 0; fi
+          bandit -r . -s B101

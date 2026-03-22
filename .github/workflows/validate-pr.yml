@@ -1,0 +1,71 @@
+name: Validate PR rules
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+    branches:
+      - hml
+      - dev
+      - staging
+      - master
+
+jobs:
+  validate-pr:
+    name: Validate PR title and branch flow
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate PR title pattern
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PR_TITLE="$(jq -r '.pull_request.title // empty' "$GITHUB_EVENT_PATH")"
+          REGEX='^(fix|feat|docs|chore|refactor): .{5,}$'
+
+          echo "PR title: ${PR_TITLE}"
+
+          if [[ -z "${PR_TITLE}" ]]; then
+            echo "Não foi possível obter o título da PR"
+            exit 1
+          fi
+
+          if [[ ! "${PR_TITLE}" =~ ${REGEX} ]]; then
+            echo "Título inválido"
+            exit 1
+          fi
+
+      - name: Validate branch flow
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BASE_REF="$(jq -r '.pull_request.base.ref // empty' "$GITHUB_EVENT_PATH")"
+          HEAD_REF="$(jq -r '.pull_request.head.ref // empty' "$GITHUB_EVENT_PATH")"
+
+          echo "BASE_REF=${BASE_REF}"
+          echo "HEAD_REF=${HEAD_REF}"
+
+          if [[ -z "${BASE_REF}" || -z "${HEAD_REF}" ]]; then
+            echo "Não foi possível obter base/head da PR"
+            exit 1
+          fi
+
+          if [[ "${BASE_REF}" == "hml" && "${HEAD_REF}" != "dev" ]]; then
+            echo "Fluxo inválido: hml só aceita PR de dev"
+            exit 1
+          fi
+
+          if [[ "${BASE_REF}" == "staging" && "${HEAD_REF}" != "hml" ]]; then
+            echo "Fluxo inválido: staging só aceita PR de hml"
+            exit 1
+          fi
+
+          if [[ "${BASE_REF}" == "master" && "${HEAD_REF}" != "staging" ]]; then
+            echo "Fluxo inválido: master só aceita PR de staging"
+            exit 1
+          fi
